@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verb Sentence Generator</title>
+  <!-- Load Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom styles for the body and font */
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* Custom gradient text for the heading */
+    .gradient-text {
+      background-image: linear-gradient(to right, #6366f1, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      color: transparent;
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-100 to-purple-100 p-4">
+  <div class="bg-white p-8 rounded-xl shadow-2xl max-w-2xl w-full text-center">
+    <!-- Stylized Heading Section -->
+    <h1 class="text-5xl font-extrabold mb-4 flex flex-col items-center justify-center">
+      <span class="gradient-text drop-shadow-lg mb-2 flex items-center">
+        <!-- E=>B Logo SVG -->
+        <svg class="h-12 w-20 mr-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V4m0 8v4m-6 0H6m6 0h6"/>
+          <text x="2" y="10" font-family="Arial" font-size="8" fill="currentColor" font-weight="bold">E</text>
+          <text x="14" y="10" font-family="Arial" font-size="8" fill="currentColor" font-weight="bold">B</text>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 12h4m-2-2l2 2-2 2"/>
+        </svg>
+        Verb to Sentence Generator
+      </span>
+      <span class="text-xl font-semibold text-purple-800">(with Bangla Translation)</span>
+    </h1>
+    <!-- End Stylized Heading Section -->
+
+    <div class="flex flex-col sm:flex-row items-center justify-center mb-6">
+      <input
+        type="text"
+        id="verbInput"
+        placeholder="Enter an English verb to generate Sentences"
+        class="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 mb-4 sm:mb-0 sm:mr-4 text-lg"
+      >
+      <button
+        onclick="generateSentences()"
+        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-lg"
+      >
+        Generate
+      </button>
+    </div>
+
+    <div
+      id="output"
+      class="mt-6 p-6 bg-gray-50 border border-gray-200 rounded-xl text-left text-gray-700 leading-relaxed min-h-[150px] overflow-auto shadow-inner text-base"
+    >
+      Your sentences will appear here...
+    </div>
+  </div>
+
+  <script>
+    // API key should be an empty string for Canvas to inject it at runtime for gemini-2.0-flash
+    const API_KEY = "AIzaSyBeJXPLg-dxaiXi9tXLe0NKJMSGewWpLjM"; // Leave this empty for Canvas environment
+
+    /**
+     * Speaks the given text using the Web Speech API.
+     * @param {string} text The text to be spoken.
+     */
+    function speakSentence(text) {
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US'; // Set language to English
+        speechSynthesis.speak(utterance);
+      } else {
+        console.warn("Speech Synthesis API not supported in this browser.");
+        // You could add a fallback message to the UI here if needed
+      }
+    }
+
+    /**
+     * Generates English sentences using a given verb and translates them into Bangla.
+     * Displays the results in the 'output' div.
+     */
+    async function generateSentences() {
+      const verb = document.getElementById("verbInput").value.trim();
+      const outputDiv = document.getElementById("output");
+
+      // Validate verb input
+      if (!verb) {
+        outputDiv.innerHTML = '<p class="text-red-600">Please enter a verb first! 🤔</p>';
+        return;
+      }
+
+      // Clear previous content and show loading message
+      outputDiv.innerHTML = '<p class="text-gray-600">Generating sentences... ⏳ Please wait.</p>';
+
+      // Construct the prompt for the AI model
+      const prompt = `
+You are a helpful assistant. Given a single English verb, generate 25 simple English sentences using that verb in various tenses or contexts. Then, translate each sentence into Bangla.
+
+Format:
+1. [English sentence]
+   Bangla: [Bangla translation]
+2. [English sentence]
+   Bangla: [Bangla translation]
+... (up to 10 sentences)
+
+Verb: "${verb}"
+`;
+
+      try {
+        // Construct the API URL. The API_KEY will be automatically provided by Canvas if empty.
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+
+        // Make the fetch call to the Gemini API
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        });
+
+        // Check if the response was successful
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+        }
+
+        const data = await response.json();
+        // Extract the generated text from the response
+        const result = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response received from the AI. Please try again.";
+
+        // --- Start of new output formatting logic ---
+        outputDiv.innerHTML = ''; // Clear the output div for structured content
+
+        // Split the result into individual sentence blocks
+        const sentenceBlocks = result.split(/\n(?=\d+\.)/).filter(block => block.trim() !== '');
+
+        if (sentenceBlocks.length === 0) {
+            outputDiv.innerHTML = '<p class="text-red-600">Could not parse sentences from the response. Please try a different verb.</p>';
+            return;
+        }
+
+        sentenceBlocks.forEach((block, index) => {
+            // Use regex to extract English and Bangla parts
+            const match = block.match(/^\s*\d+\.\s*(.*?)\n\s*Bangla:\s*(.*)/s);
+
+            if (match && match.length >= 3) {
+                const englishSentence = match[1].trim();
+                const banglaTranslation = match[2].trim();
+
+                const sentenceContainer = document.createElement('div');
+                sentenceContainer.className = 'mb-4 p-4 bg-white rounded-lg shadow-md border border-gray-100';
+
+                const englishWrapper = document.createElement('div');
+                englishWrapper.className = 'flex items-center justify-between mb-1';
+
+                const englishP = document.createElement('p');
+                englishP.className = 'font-semibold text-gray-800 text-lg flex-grow mr-2'; // flex-grow to take available space
+                englishP.textContent = `${index + 0}. ${englishSentence}`;
+
+                const listenButton = document.createElement('button');
+                listenButton.className = 'bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-medium py-1 px-3 rounded-full transition duration-200 ease-in-out flex items-center';
+                listenButton.innerHTML = `
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 5.343a1 1 0 010 1.414L12.07 9l2.587 2.243a1 1 0 010 1.414l-.707.707a1 1 0 01-1.414 0L10 10.414l-2.586 2.243a1 1 0 01-1.414 0l-.707-.707a1 1 0 010-1.414L8.929 9 6.343 6.757a1 1 0 010-1.414l.707-.707a1 1 0 011.414 0L10 7.586l2.586-2.243a1 1 0 011.414 0l.707.707z" clip-rule="evenodd" />
+                  </svg>
+                  Listen
+                `;
+                listenButton.onclick = () => speakSentence(englishSentence);
+
+                englishWrapper.appendChild(englishP);
+                englishWrapper.appendChild(listenButton);
+
+                const banglaP = document.createElement('p');
+                banglaP.className = 'text-gray-600 text-base italic';
+                banglaP.textContent = `Bangla: ${banglaTranslation}`;
+
+                sentenceContainer.appendChild(englishWrapper);
+                sentenceContainer.appendChild(banglaP);
+                outputDiv.appendChild(sentenceContainer);
+            } else {
+                // Fallback for unparseable blocks, display as raw text
+                const rawBlock = document.createElement('p');
+                rawBlock.className = 'text-red-500 text-sm mb-2';
+                rawBlock.textContent = ` ${block.substring(0, 100)}...`; // Show first 100 chars
+                outputDiv.appendChild(rawBlock);
+            }
+        });
+        // --- End of new output formatting logic ---
+
+      } catch (error) {
+        // Handle any errors during the fetch or processing
+        outputDiv.innerHTML = `<p class="text-red-600">❌ Error: ${error.message}. Please check your input or try again later.</p>`;
+        console.error("Error generating sentences:", error);
+      }
+    }
+  </script>
+</body>
+</html>
